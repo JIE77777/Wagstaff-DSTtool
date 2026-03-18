@@ -1,6 +1,6 @@
 #!/bin/bash
 # DST Dedicated Server Tool
-# Release: v6.8
+# Release: v6.9
 # Single-file management script for Don't Starve Together dedicated server.
 
 # ================= 配置区域 =================
@@ -15,6 +15,7 @@ CFG_STEAMCMD_DIR="$HOME/steamcmd"
 CFG_BACKUP_REPO="$HOME/dst_backups"
 CFG_SCREEN_MASTER_NAME="DST_Master"
 CFG_SCREEN_CAVES_NAME="DST_Caves"
+CFG_INITIALIZED="0"                                     # 0: 首次运行未初始化, 1: 已初始化
 
 DST_DIR="$CFG_DST_DIR"
 STEAMCMD_DIR="$CFG_STEAMCMD_DIR"
@@ -24,7 +25,7 @@ BACKUP_REPO="$CFG_BACKUP_REPO"
 SERVICE_MODE="$CFG_SERVICE_MODE" # screen / external
 SCREEN_MASTER_NAME="$CFG_SCREEN_MASTER_NAME"
 SCREEN_CAVES_NAME="$CFG_SCREEN_CAVES_NAME"
-SCRIPT_VERSION="v6.8"
+SCRIPT_VERSION="v6.9"
 
 DST_BIN_DIR=""
 DST_EXEC=""
@@ -230,6 +231,7 @@ save_embedded_config() {
     sed -i "s|^CFG_SERVICE_MODE=.*$|CFG_SERVICE_MODE=\"$v_mode\" # screen / external|" "$self_file"
     sed -i "s|^CFG_SCREEN_MASTER_NAME=.*$|CFG_SCREEN_MASTER_NAME=\"$v_master\"|" "$self_file"
     sed -i "s|^CFG_SCREEN_CAVES_NAME=.*$|CFG_SCREEN_CAVES_NAME=\"$v_caves\"|" "$self_file"
+    sed -i "s|^CFG_INITIALIZED=.*$|CFG_INITIALIZED=\"1\"                                     # 0: 首次运行未初始化, 1: 已初始化|" "$self_file"
 }
 
 run_init_wizard() {
@@ -273,6 +275,7 @@ run_init_wizard() {
     echo " BACKUP_REPO=$BACKUP_REPO"
     echo " SERVICE_MODE=$SERVICE_MODE"
     if save_embedded_config "$script_file"; then
+        CFG_INITIALIZED="1"
         echo -e "${GREEN}✅ 已写入脚本内嵌配置：$script_file${NC}"
     else
         echo -e "${RED}❌ 写入脚本失败，请检查文件权限。${NC}"
@@ -285,9 +288,10 @@ show_help_text() {
 DST Tool ${SCRIPT_VERSION} 内置说明
 ==================================================
 一、快速开始
-1) 执行初始化：$(basename "$0") --init
-2) 或在主菜单选择：11. 脚本工具 -> 1. 初始化/重扫配置
-3) 初始化会把结果写回脚本顶部 CFG_* 配置
+1) 首次运行会自动进入初始化向导
+2) 手动执行初始化：$(basename "$0") --init
+3) 或在主菜单选择：11. 脚本工具 -> 1. 初始化/重扫配置
+4) 初始化会把结果写回脚本顶部 CFG_* 配置
 
 二、最小手动配置（脚本顶部）
 1) CFG_DST_DIR: DST 专用服目录（含 bin/）
@@ -329,6 +333,7 @@ show_current_config() {
     echo " SERVICE_MODE=$SERVICE_MODE"
     echo " SCREEN_MASTER_NAME=$SCREEN_MASTER_NAME"
     echo " SCREEN_CAVES_NAME=$SCREEN_CAVES_NAME"
+    echo " CFG_INITIALIZED=${CFG_INITIALIZED:-0}"
     pause
 }
 
@@ -354,6 +359,20 @@ script_tools_menu() {
             *) echo -e "${RED}❌ 无效选项${NC}"; sleep 0.5 ;;
         esac
     done
+}
+
+auto_init_if_needed() {
+    if [ "${CFG_INITIALIZED:-0}" = "1" ]; then
+        return 0
+    fi
+
+    if [ ! -t 0 ]; then
+        echo -e "${YELLOW}⚠️ 检测到首次运行且未初始化，但当前非交互终端。请先执行: $(basename "$0") --init${NC}"
+        return 0
+    fi
+
+    echo -e "${YELLOW}ℹ️ 检测到首次运行，自动进入初始化向导...${NC}"
+    run_init_wizard
 }
 
 check_status() {
@@ -1187,6 +1206,8 @@ case "${1:-}" in
         exit 0
         ;;
 esac
+
+auto_init_if_needed
 
 while true; do
     clear
